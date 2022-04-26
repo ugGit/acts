@@ -93,3 +93,5 @@ gmake[2]: *** [Core/CMakeFiles/ActsCore.dir/src/Material/SurfaceMaterialMapper.c
 gmake[1]: *** [Core/CMakeFiles/ActsCore.dir/all] Error 2
 gmake: *** [all] Error 2
 ```
+
+It is noteworthy, that the errors related to line 218 and 219 most likely are the aftermath of the preceeding error regarding the expected constant value.
