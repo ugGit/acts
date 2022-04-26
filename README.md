@@ -1,78 +1,95 @@
-# Acts Common Tracking Software
+# Compile Acts with nvc++
 
-or *A Common Tracking Software* if you do not like recursive acronyms
+## Requirements
 
-[![10.5281/zenodo.5141418](https://zenodo.org/badge/DOI/10.5281/zenodo.5141418.svg)](https://doi.org/10.5281/zenodo.5141418)
-[![Chat on Mattermost](https://badgen.net/badge/chat/on%20mattermost/cyan)](https://mattermost.web.cern.ch/acts/)
-[![coverage](https://badgen.net/codecov/c/github/acts-project/acts/main)](https://codecov.io/gh/acts-project/acts/branch/main)
-[![Latest release](https://badgen.net/github/release/acts-project/acts)](https://github.com/acts-project/acts/releases)
-[![Status](https://badgen.net/github/checks/acts-project/acts/main)](https://github.com/acts-project/acts/actions)
-[![Metrics](https://badgen.net/badge/metric/tracker/purple)](https://acts-project.github.io/metrics/)
+The issue might also be reproduced with older versions, but we went using these so far.
 
-Acts is an experiment-independent toolkit for (charged) particle track
-reconstruction in (high energy) physics experiments implemented in modern C++.
+* gcc/11.2.0
+* nvhpc/22.3    
+* boost/1.72.0  
+* eigen/3.4.0
 
-More information can be found in the [Acts documentation](https://acts.readthedocs.io/).
+## Configuration
+To run the nvc++ compiler with the desired gcc version, a localrc file must be generated. This can be done by executing a script provided by nvhpc:
 
-## Quick start
-
-Acts is developed in C++ and is build using [CMake](https://cmake.org). Building
-the core library requires a C++17 compatible compiler,
-[Boost](http://boost.org), and [Eigen](http://eigen.tuxfamily.org). The
-following commands will clone the repository, configure, and build the core
-library
-
-```sh
-git clone --recursive https://github.com/acts-project/acts <source-dir>
-cmake -B <build-dir> -S <source-dir>
-cmake --build <build-dir>
+```
+makelocalrc -gcc PATH_TO_GCC -gpp PATH_TO_G++ -x -d PATH_TO_LOCALRC_DIR
 ```
 
-For more details, e.g. specific versions and additional dependencies, have a
-look at the [getting started guide](docs/getting_started.md). If you find a bug,
-have a feature request, or want to contribute to Acts, have a look at the
-[contribution guidelines](CONTRIBUTING.rst).
+Then, the auxiliary script `nvc++_p` must be updated such that the variable `LOCALRC` points to PATH_TO_LOCALRC_DIR defined in the above command. E.g.:
+```
+LOCALRC="/home/nwachuch/bld6/nvcpp-tests/actscore-issue-recreation/localrc_gcc112"
+```
 
-## Versioning and public API
+Side note: the auxiliary script does remove some flags (e.g. `-Wno-unused-local-typedefs`) that CMake adds to the compilation process which are invalid for nvc++. Further, it is used to dynamically switch the compiler from gcc to nvc++ depending on the current target/library that is getting compiled.
 
-Release versions follow [semantic versioning](https://semver.org/spec/v2.0.0.html)
-to indicate whether a new version contains breaking changes within the public API.
-Currently, only a limited part of the visible API is considered the public API
-and subject to the semantic versioning rules. The details are outlined in the
-[versioning and public API documentation](docs/versioning.rst).
+## Compilation
+The current state should allow compiling, linking, and running the program successfully. Therefore, pass the auxiliary script `nvc++_p` as compiler during the configuration of CMake as follows:
+```
+cmake -S . -B build -DCMAKE_CXX_COMPILER=$PWD/nvc++_p
+```
 
-## Repository organization
+Then build the program:
+```
+cmake --build build/ 
+```
 
-The repository contains all code of the Acts projects, not just the core library
-that a physics experiment is expected to use as part of its reconstruction code.
-All optional components are disabled by default. Please see the
-[getting started guide](docs/getting_started.md) on how-to enable them.
+Which results in a lot of warnings and the following error:
+```
+"/home/nwachuch/bld6/acts/Core/include/Acts/Utilities/detail/MPL/type_collector.hpp", line 58: error: expression must have a constant value
+        hana::filter(t_, [&](auto t) { return predicate(t); });
+        ^
+"/opt/boost/1.72.0/include/boost/hana/detail/ebo.hpp", line 62: note: attempt to access run-time storage
+              : V(static_cast<T&&>(t))
+                  ^
+"/opt/boost/1.72.0/include/boost/hana/basic_tuple.hpp", line 69: note: called from:
+              explicit constexpr basic_tuple_impl(Yn&& ...yn)
+                                 ^
+"/opt/boost/1.72.0/include/boost/hana/basic_tuple.hpp", line 96: note: called from:
+          explicit constexpr basic_tuple(Yn&& ...yn)
+                             ^
+"/opt/boost/1.72.0/include/boost/hana/tuple.hpp", line 127: note: called from:
+          constexpr tuple(Yn&& ...yn)
+                    ^
+"/opt/boost/1.72.0/include/boost/hana/tuple.hpp", line 316: note: called from:
+          { return {static_cast<Xs&&>(xs)...}; }
+            ^
+"/opt/boost/1.72.0/include/boost/hana/fwd/core/make.hpp", line 61: note: called from:
+              return make_impl<Tag>::apply(static_cast<X&&>(x)...);
+                                          ^
+"/opt/boost/1.72.0/include/boost/hana/filter.hpp", line 115: note: called from:
+              return hana::make<S>(
+                                  ^
+"/opt/boost/1.72.0/include/boost/hana/filter.hpp", line 127: note: called from:
+              return filter_impl::filter_helper<Indices>(
+                                                        ^
+"/opt/boost/1.72.0/include/boost/hana/filter.hpp", line 48: note: called from:
+          return Filter::apply(static_cast<Xs&&>(xs),
+                              ^
+          detected during:
+            instantiation of function "lambda [](auto, auto, auto)->auto [with <auto-1>=boost::hana::tuple<boost::hana::type<Acts::SurfaceCollector<Acts::MaterialSurface>>, boost::hana::type<Acts::VolumeCollector<Acts::MaterialVolume>>>, <auto-2>=boost::hana::type_detail::is_valid_fun<lambda [](auto)->boost::hana::type<<unnamed>::type::result_type> &&>, <auto-3>=boost::hana::template_t<Acts::detail::result_type_extractor::extractor_impl>]" at line 77
+            instantiation of "const auto Acts::detail::type_collector_t [with helper=Acts::detail::result_type_extractor, items=<Acts::SurfaceCollector<Acts::MaterialSurface>, Acts::VolumeCollector<Acts::MaterialVolume>>]" at line 42 of "/home/nwachuch/bld6/acts/Core/include/Acts/Propagator/ActionList.hpp"
+            instantiation of type "Acts::ActionList<actors_t...>::result_type<Acts::Propagator<Acts::StraightLineStepper, Acts::Navigator>::result_type_helper<Acts::SingleCurvilinearTrackParameters<Acts::SinglyCharged>, Acts::ActionList<Acts::SurfaceCollector<Acts::MaterialSurface>, Acts::VolumeCollector<Acts::MaterialVolume>>>::this_result_type> [with actors_t=<Acts::SurfaceCollector<Acts::MaterialSurface>, Acts::VolumeCollector<Acts::MaterialVolume>>]" at line 311 of "/home/nwachuch/bld6/acts/Core/include/Acts/Propagator/Propagator.hpp"
+            instantiation of class "Acts::Propagator<stepper_t, navigator_t>::result_type_helper<parameters_t, action_list_t> [with stepper_t=Acts::StraightLineStepper, navigator_t=Acts::Navigator, parameters_t=Acts::SingleCurvilinearTrackParameters<Acts::SinglyCharged>, action_list_t=Acts::ActionList<Acts::SurfaceCollector<Acts::MaterialSurface>, Acts::VolumeCollector<Acts::MaterialVolume>>]" at line 217 of "/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp"
 
--   `Core/` contains the core library that provides functionality in the `Acts`
-    namespace.
--   `Plugins/` contains plugins for core functionality that requires
-    additional external packages. The functionality also resides in the `Acts`
-    namespace.
--   `Fatras/` provides fast track simulation tools based on the core
-    library. This is not part of the core functionality and thus resides in the
-    separate `ActsFatras` namespace.
--   `Examples/` contains simulation and reconstruction examples. These are
-    internal tools for manual full-chain development and tests and reside in
-    the `ActsExamples` namespace.
--   `Tests/` contains automated unit tests, integration tests, and
-    (micro-)benchmarks.
--   `thirdparty/` contains external dependencies that are usually not available
-    through the system package manager.
+"/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp", line 218: error: type name is not allowed
+    auto mcResult = result.get<MaterialSurfaceCollector::result_type>();
+                               ^
 
-## Authors and license
+"/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp", line 218: error: expected an expression
+    auto mcResult = result.get<MaterialSurfaceCollector::result_type>();
+                                                                      ^
 
-Contributors to the Acts project are listed in the [AUTHORS](AUTHORS) file.
+"/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp", line 219: error: type name is not allowed
+    auto mvcResult = result.get<MaterialVolumeCollector::result_type>();
+                                ^
 
-The Acts project is published under the terms of the Mozilla Public License, v. 2.0.
-A copy of the license can be found in the [LICENSE](LICENSE) file or at
-http://mozilla.org/MPL/2.0/ .
+"/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp", line 219: error: expected an expression
+    auto mvcResult = result.get<MaterialVolumeCollector::result_type>();
+                                                                      ^
 
-The Acts project contains copies of the following external packages:
-
--   [OpenDataDetector](https://github.com/acts-project/OpenDataDetector)
-    licensed under the MPLv2 license.
+5 errors detected in the compilation of "/home/nwachuch/bld6/acts/Core/src/Material/SurfaceMaterialMapper.cpp".
+gmake[2]: *** [Core/CMakeFiles/ActsCore.dir/src/Material/SurfaceMaterialMapper.cpp.o] Error 2
+gmake[1]: *** [Core/CMakeFiles/ActsCore.dir/all] Error 2
+gmake: *** [all] Error 2
+```
